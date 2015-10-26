@@ -78,8 +78,7 @@ let onCallClicked = () => {
       remotePC.addIceCandidate(new RTCIceCandidate(e.candidate));
   };
 
-  let sendChannel = localPC.createDataChannel('sendDataChannel',
-      { reliable: true });
+  let sendChannel = localPC.createDataChannel('sendDataChannel', {});
   sendChannel.onopen = () => {
     dataChannelSend().disabled = false;
     dataChannelSend().focus();
