@@ -1,69 +1,75 @@
+window.onload = () => {
 'use strict';
 
-let memoize = (fn) => {
-  let cached = false;
-  let value = null;
-  return () => {
-    if (cached)
-      return value;
-    cached = true;
-    value = fn();
-    return value;
-  };
-};
+let $ = document.getElementById.bind(document);
 
-let lazyElement = (id) => memoize(() => document.getElementById(id));
-let startButton = lazyElement('startButton');
-let callButton = lazyElement('callButton');
-let hangupButton = lazyElement('hangupButton');
-let sendButton = lazyElement('sendButton');
-let localVideo = lazyElement('localVideo');
-let remoteVideo = lazyElement('remoteVideo');
-let dataChannelSend = lazyElement('dataChannelSend');
-let dataChannelReceive = lazyElement('dataChannelReceive');
+let switchMainPanelMode = (mode) => {
+  let controls = ['uninitialized', 'disconnected', 'join', 'connected'].map(
+      (prefix) => {
+        let element = $(prefix + 'Controls');
+        if (element)
+          element.style.display = (prefix === mode) ? 'block' : 'none';
+      });
+};
 
 let localStream = null;
-let terminateCall = () => {};
-let saySomething = () => {};
+let localPeer = null;
+let remotePeers = [];
 
-let randomId = () => (Math.random() * 100000000) | 0;
-let updateChannel = () => { selectChannel(window.location.hash.substr(1)); };
+switchMainPanelMode('uninitialized');
 
-let init = () => {
-  startButton().disabled = false;
-  callButton().disabled = true;
-  hangupButton().disabled = true;
-  startButton().onclick = onStartClicked;
-  callButton().onclick = onCallClicked;
-  hangupButton().onclick = onHangupClicked;
-  sendButton().onclick = onSendClicked;
-  if (window.location.hash === '#' || window.location.hash === '')
-    window.location.hash = '#' + randomId();
-  else
-    updateChannel();
+navigator.webkitGetUserMedia({ video: true },
+    (stream) => {
+      localStream = stream;
+      let video = $('localVideo');
+      video.src = URL.createObjectURL(stream);
+      video.play();
+
+      let channelId = window.location.hash.substr(1);
+      if (channelId === '')
+        hangUp();
+      else
+        joinChannel(channelId);
+    },
+    (error) => {
+      console.error('Unable to get stream: ', error);
+    });
+
+$('startButton').onclick = () => {
+  let id = (Math.random() * 1000000000) | 0;
+  joinChannel(id);
 };
 
-window.addEventListener('hashchange', updateChannel);
-window.addEventListener('load', init);
-
-let selectChannel = (id) => {
-  console.log('Switching to channel ' + id);
+$('showJoinButton').onclick = () => {
+  switchMainPanelMode('join');
+  $('channelId').focus();
 };
 
-let onStartClicked = () => {
-  startButton().disabled = true;
-  navigator.webkitGetUserMedia({ video: true },
-      (stream) => {
-        localStream = stream;
-        let video = localVideo();
-        video.src = URL.createObjectURL(stream);
-        video.play();
-        video.style.transform = 'rotateY(180deg)';
-        callButton().disabled = false;
-      },
-      (error) => {
-        console.error('Unable to get stream: ', error);
-      });
+$('joinButton').onclick = () => joinChannel($('channelId').value);
+$('joinCancelButton').onclick = () => switchMainPanelMode('disconnected');
+
+$('chatMessage').onkeypress = (e) => {
+  if (e.keyCode === 13)
+    $('chatSendButton').click();
+};
+
+$('chatSendButton').onclick = () => {
+  let message = $('chatMessage').value;
+  $('chatMessage').value = '';
+  // TODO: implement
+  console.log('SEND TEXT: ', message);
+};
+
+$('hangupButton').onclick = () => hangUp();
+
+let joinChannel = (channelId) => {
+  localPC
+};
+
+let hangUp = () => {
+  switchMainPanelMode('disconnected');
+};
+
 };
 
 let onCallClicked = () => {
@@ -122,14 +128,7 @@ let onCallClicked = () => {
   saySomething = () => { sendChannel.send(dataChannelSend().value); };
 };
 
-let onHangupClicked = () => {
-  hangupButton().disabled = true;
-  callButton().disabled = false;
-  terminateCall();
-};
-
-let onSendClicked = () => { saySomething(); };
-
+/*
 let createIceService = function(urlString, username, password) {
   let url = new URL(urlString);
   if (url.protocol === 'stun:') {
@@ -142,3 +141,4 @@ let createIceService = function(urlString, username, password) {
     };
   }
 };
+*/

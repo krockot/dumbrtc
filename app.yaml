@@ -7,6 +7,7 @@ api_version: go1
 handlers:
 - url: /broker
   script: _go_app
+  secure: always
 
 - url: /favicon.ico
   static_files: static/favicon.ico
@@ -15,7 +16,9 @@ handlers:
 - url: /
   static_files: static/index.html
   upload: static/index.html
+  secure: always
 
 - url: /
   static_dir: static
+  secure: always
 

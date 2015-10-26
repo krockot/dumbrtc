@@ -3,3 +3,23 @@ html, body {
   background-color: black;
   color: white;
 }
+
+div#thumbnails {
+  width: 100%;
+}
+
+div#mainpanel {
+  width: 100%;
+}
+
+video#localVideo {
+  transform: rotateY(180deg);
+}
+
+video.fullsize {
+  width: 40%;
+}
+
+video.thumbnail{
+  width: 10%;
+}

@@ -6,15 +6,29 @@
     <script src="/main.js"></script>
   </head>
   <body>
-    <video id="localVideo" autoplay></video>
-    <video id="remoteVideo" autoplay></video>
-    <textarea id="dataChannelSend" disabled placeholder="Send text from here."></textarea>
-    <textarea id="dataChannelReceive" disabled></textarea>
-    <div>
-      <button id="startButton">Start</button>
-      <button id="callButton">Call</button>
-      <button id="hangupButton">Hang Up</button>
-      <button id="sendButton">Send</button>
+    <video id="localVideo" autoplay class="fullsize"></video>
+    <video id="remoteVideo" autoplay class="fullsize"></video>
+    <div id="thumbnails"></div>
+    <div id="mainPanel">
+      <div id="uninitializedControls"></div>
+      <div id="disconnectedControls">
+        <p><button id="startButton">Start</button> a new channel or
+        <button id="showJoinButton">join</button> an existing one</p>
+      </div>
+      <div id="joinControls">
+        <label>Enter the channel ID</label>
+        <input type="text" id="channelId"></input>
+        <button id="joinButton">Join</button>
+        <button id="joinCancelButton">Cancel</button>
+      </div>
+      <div id="connectedControls">
+        <div id="chatPanel">
+          <p id="chatLog"></p>
+          <input type="text" id="chatMessage">
+          <button id="chatSendButton">Send</button>
+        </div>
+        <button id="hangupButton">Hang Up</button>
+      </div>
     </div>
   </body>
 </html>
