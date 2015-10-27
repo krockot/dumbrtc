@@ -31,6 +31,27 @@ let connectedChannelId = null;
 let knownPeers = {};
 
 switchMainPanelMode('uninitialized');
+
+let initializeLocalStream = () => {
+  navigator.webkitGetUserMedia({ video: true },
+      (stream) => {
+        localStream = stream;
+        let video = $('localVideo');
+        video.src = URL.createObjectURL(stream);
+        video.play();
+
+        let channelId = window.location.hash.substr(1);
+        if (channelId === '')
+          hangUp();
+        else
+          joinChannel(channelId);
+      },
+      (error) => {
+        console.error('Unable to get stream: ', error);
+        setTimeout(initializeLocalStream, 1000);
+      });
+};
+
 initializeLocalStream();
 
 $('startButton').onclick = () => {
@@ -70,26 +91,6 @@ $('chatSendButton').onclick = () => {
 };
 
 $('hangupButton').onclick = () => hangUp();
-
-let initializeLocalStream = () => {
-  navigator.webkitGetUserMedia({ video: true },
-      (stream) => {
-        localStream = stream;
-        let video = $('localVideo');
-        video.src = URL.createObjectURL(stream);
-        video.play();
-
-        let channelId = window.location.hash.substr(1);
-        if (channelId === '')
-          hangUp();
-        else
-          joinChannel(channelId);
-      },
-      (error) => {
-        console.error('Unable to get stream: ', error);
-        setTimeout(initializeLocalStream, 1000);
-      });
-};
 
 let isConnected = () => localPeerId !== null && connectedChannelId !== null;
 
