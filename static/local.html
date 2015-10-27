@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Local stream test</title>
+  </head>
+  <body>
+    <video id='localVideo' autoplay></video>
+  </body>
+  <script>
+    'use strict';
+    navigator.webkitGetUserMedia({ video: true, audio: true },
+        (stream) => {
+          let video = document.getElementById('localVideo');
+          video.src = URL.createObjectURL(stream);
+          video.style.transform = 'rotateY(180deg)';
+        }, (error) => {
+          console.error('Failed to get local stream: ', error);
+        });
+  </script>
+</html>
