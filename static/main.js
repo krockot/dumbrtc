@@ -3,6 +3,15 @@ window.onload = () => {
 
 let ENABLE_LOGGING = true;
 
+let DEFAULT_ICE_SERVERS = [
+  { url: 'stun:stun.l.google.com:19302' },
+  { url: 'turn:oz.gs:3478', username: 'webrtc', credential: 'test' },
+];
+
+let DEFAULT_PEER_CONFIG = {
+  'iceServers': DEFAULT_ICE_SERVERS,
+};
+
 let $ = document.getElementById.bind(document);
 let log = (ENABLE_LOGGING ?
     function() { console.log.apply(console, arguments); } : () => {});
@@ -168,7 +177,7 @@ let updatePeers = (peers) => {
       return;
 
     log('Creating new local peer connection from peers list: ' + peerId);
-    let localPeerConnection = new webkitRTCPeerConnection(null);
+    let localPeerConnection = new webkitRTCPeerConnection(DEFAULT_PEER_CONFIG);
     localPeerConnection.onicecandidate = (e) => {
       log('Local peer from peers list got ice candidate.');
       if (e.candidate)
@@ -227,7 +236,8 @@ let updateOffers = (offers) => {
         ? knownPeers[peerId] : null);
     if (!peerInfo && description.type === 'offer') {
       log('Creating new local peer connection for offer from ' + peerId);
-      let localPeerConnection = new webkitRTCPeerConnection(null);
+      let localPeerConnection =
+          new webkitRTCPeerConnection(DEFAULT_PEER_CONFIG);
       localPeerConnection.onicecandidate = (e) => {
             log('Local peer connection from offer got a candidate');
             if (e.candidate)
@@ -281,16 +291,4 @@ let updateOffers = (offers) => {
 
 };
 
-let createIceService = function(urlString, username, password) {
-  let url = new URL(urlString);
-  if (url.protocol === 'stun:') {
-    return { 'url': url.toString() };
-  } else if (url.protocol === 'turn:') {
-    return {
-      'url': url.toString(),
-      'username': username,
-      'credential': password
-    };
-  }
-};
 */
