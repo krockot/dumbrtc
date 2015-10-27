@@ -208,7 +208,7 @@ let updatePeers = (peers) => {
     let peer = {
       connection: localPeerConnection,
       dataChannel: dataChannel,
-      dataChannelReady: true,
+      dataChannelReady: false,
       knownCandidates: {},
       hasAnswer: false,
       dataQueue: []
