@@ -1,7 +1,11 @@
 window.onload = () => {
 'use strict';
 
+let ENABLE_LOGGING = true;
+
 let $ = document.getElementById.bind(document);
+let log = (ENABLE_LOGGING ?
+    function() { console.log.apply(console, arguments); } : () => {});
 
 let switchMainPanelMode = (mode) => {
   let controls = ['uninitialized', 'disconnected', 'join', 'connected'].map(
@@ -49,6 +53,11 @@ $('showJoinButton').onclick = () => {
 $('joinButton').onclick = () => joinChannel($('channelId').value);
 $('joinCancelButton').onclick = () => switchMainPanelMode('disconnected');
 
+$('channelId').onkeypress = (e) => {
+  if (e.keyCode === 13)
+    $('joinButton').click();
+};
+
 $('chatMessage').onkeypress = (e) => {
   if (e.keyCode === 13)
     $('chatSendButton').click();
@@ -65,12 +74,17 @@ $('hangupButton').onclick = () => hangUp();
 
 let isConnected = () => localPeerId !== null && connectedChannelId !== null;
 
+let nextRequestId = 0;
 let issueBrokerRequest = (request) => {
+  let requestId = ++nextRequestId;
+  log('Issuing broker request of type ' + request.Operation + ' ('
+      + requestId + ')');
   let xhr = new XMLHttpRequest;
   xhr.responseType = 'text';
   xhr.open('POST', '/broker');
   return new Promise((resolve, reject) => {
     xhr.onload = () => {
+      log('Completed broker request ' + requestId);
       if (xhr.status === 200)
         resolve(JSON.parse(xhr.response));
       else
@@ -138,34 +152,36 @@ let updateStatus = () => {
       .then((status) => {
         if (!isConnected())
           return;
-        updatePeers(status.Peers)
         if (status.Candidates !== null)
           updateCandidates(status.Candidates)
         if (status.Offers !== null)
           updateOffers(status.Offers)
+        if (status.Peers !== null)
+          updatePeers(status.Peers)
         setTimeout(updateStatus, 2000);
       });
 };
 
 let updatePeers = (peers) => {
-  if (!isConnected())
-    return;
   peers.forEach((peerId) => {
     if (knownPeers.hasOwnProperty(peerId) || peerId <= localPeerId)
       return;
 
+    log('Creating new local peer connection from peers list: ' + peerId);
     let localPeerConnection = new webkitRTCPeerConnection(null);
     localPeerConnection.onicecandidate = (e) => {
+      log('Local peer from peers list got ice candidate.');
       if (e.candidate)
         addIceCandidate(peerId, e.candidate);
     };
     localPeerConnection.addStream(localStream);
     localPeerConnection.createOffer((description) => {
+      log('Local peer from peers list created offer.');
       localPeerConnection.setLocalDescription(description);
       addOffer(peerId, description);
     });
     localPeerConnection.onaddstream = (e) => {
-      console.log('Added stream!');
+      log('Local peer from peers list got a stream.');
       $('remoteVideo').src = URL.createObjectURL(e.stream);
     };
 
@@ -194,6 +210,7 @@ let updateCandidates = (candidates) => {
     if (peerInfo.knownCandidates.hasOwnProperty(c.Candidate) ||
         !peerInfo.hasAnswer)
       return;
+    log('Got candidate for active peer ' + c.SourceID);
     peerInfo.knownCandidates[c.Candidate] = c;
     peerInfo.connection.addIceCandidate(new RTCIceCandidate({
       candidate: c.Candidate,
@@ -209,16 +226,18 @@ let updateOffers = (offers) => {
     let peerInfo = (knownPeers.hasOwnProperty(peerId)
         ? knownPeers[peerId] : null);
     if (!peerInfo && description.type === 'offer') {
+      log('Creating new local peer connection for offer from ' + peerId);
       let localPeerConnection = new webkitRTCPeerConnection(null);
       localPeerConnection.onicecandidate = (e) => {
-        if (e.candidate)
-          addIceCandidate(peerId, e.candidate);
-      };
+            log('Local peer connection from offer got a candidate');
+            if (e.candidate)
+              addIceCandidate(peerId, e.candidate);
+          };
       localPeerConnection.addStream(localStream);
       localPeerConnection.onaddstream = (e) => {
-        console.log('Added stream!');
-        $('remoteVideo').src = URL.createObjectURL(e.stream);
-      };
+            log('Local peer connection from offer got a stream');
+            $('remoteVideo').src = URL.createObjectURL(e.stream);
+          };
       let peer = {
         connection: localPeerConnection,
         dataChannel: null,
@@ -227,24 +246,24 @@ let updateOffers = (offers) => {
         hasAnswer: false,
       };
       localPeerConnection.ondatachannel = (e) => {
-        peer.dataChannel = e.channel;
-        e.channel.onopen = (e) => { peer.dataChannelReady = true; }
-        e.channel.onclose = (e) => { peer.dataChannelReady = false; }
-      };
+            peer.dataChannel = e.channel;
+            e.channel.onopen = (e) => { peer.dataChannelReady = true; }
+            e.channel.onclose = (e) => { peer.dataChannelReady = false; }
+          };
+      log('Setting remote description of local peer connection from offer.');
       localPeerConnection.setRemoteDescription(
           new RTCSessionDescription(description));
       localPeerConnection.createAnswer((description) => {
-        localPeerConnection.setLocalDescription(description);
-        peer.hasAnswer = true;
-        addOffer(peerId, description);
-      }, (error) => {
-        throw error;
-      });
+            log('Local peer connection created answer to offer.');
+            localPeerConnection.setLocalDescription(description);
+            peer.hasAnswer = true;
+            addOffer(peerId, description);
+          }, (error) => { throw error; });
       knownPeers[peerId] = peer;
-      console.log('Holding onto offer from peer ', peer);
+      log('Holding onto offer from peer ', peer);
     } else if (peerInfo && description.type === 'answer' &&
                !peerInfo.hasAnswer) {
-      console.log('Received answer from peer: ', description);
+      log('Received answer from peer ' + peerId, description);
       peerInfo.hasAnswer = true;
       peerInfo.connection.setRemoteDescription(
           new RTCSessionDescription(description));
@@ -256,15 +275,10 @@ let updateOffers = (offers) => {
 
 /* TODO:
 
- handle peer connection:
-   onicecandidate: pc.addIceCandidate(new RTCIceCandidate(e.candidate))
-   onaddstream: create video with src=URL.createObjectURL(e.stream)
    dataChannel.onmessage get from e.data
 
  send chat with dataChannel.send
 
- on offer:
-   createAnswer((desc) => ...);
 };
 
 let createIceService = function(urlString, username, password) {
