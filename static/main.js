@@ -1,7 +1,7 @@
 window.onload = () => {
 'use strict';
 
-let ENABLE_LOGGING = true;
+let ENABLE_LOGGING = false;
 
 let DEFAULT_ICE_SERVERS = [
   { url: 'stun:stun.l.google.com:19302' },
@@ -75,8 +75,14 @@ $('chatMessage').onkeypress = (e) => {
 $('chatSendButton').onclick = () => {
   let message = $('chatMessage').value;
   $('chatMessage').value = '';
-  // TODO: implement
-  console.log('SEND TEXT: ', message);
+  postChatMessage('<strong>' + localPeerId + ':</strong> ' + message);
+  Object.keys(knownPeers).forEach((peerId) => {
+    let peer = knownPeers[peerId];
+    if (peer.dataChannel !== null && peer.dataChannelReady)
+      peer.dataChannel.send(message);
+    else
+      peer.dataQueue.push(message);
+  });
 };
 
 $('hangupButton').onclick = () => hangUp();
@@ -143,9 +149,10 @@ let addOffer = (targetId, description) => {
 
 let hangUp = () => {
   Object.keys(knownPeers).forEach((peerId) => {
-    let peer = knownPeers(peerId);
+    let peer = knownPeers[peerId];
     peer.connection.close();
-    peer.dataChannel.close();
+    if (peer.dataChannel !== null)
+      peer.dataChannel.close();
   });
   localPeerId = null;
   connectedChannelId = null;
@@ -178,34 +185,52 @@ let updatePeers = (peers) => {
 
     log('Creating new local peer connection from peers list: ' + peerId);
     let localPeerConnection = new webkitRTCPeerConnection(DEFAULT_PEER_CONFIG);
+
     localPeerConnection.onicecandidate = (e) => {
       log('Local peer from peers list got ice candidate.');
       if (e.candidate)
         addIceCandidate(peerId, e.candidate);
     };
-    localPeerConnection.addStream(localStream);
-    localPeerConnection.createOffer((description) => {
-      log('Local peer from peers list created offer.');
-      localPeerConnection.setLocalDescription(description);
-      addOffer(peerId, description);
-    });
+
     localPeerConnection.onaddstream = (e) => {
       log('Local peer from peers list got a stream.');
       $('remoteVideo').src = URL.createObjectURL(e.stream);
     };
 
-    let dataChannel = localPeerConnection.createDataChannel('data', {});
+    localPeerConnection.addStream(localStream);
+    let dataChannel = localPeerConnection.createDataChannel('chat');
 
     let peer = {
       connection: localPeerConnection,
       dataChannel: dataChannel,
-      dataChannelReady: false,
+      dataChannelReady: true,
       knownCandidates: {},
-      hasAnswer: false
+      hasAnswer: false,
+      dataQueue: []
     };
 
-    dataChannel.onopen = () => { peer.dataChannelReady = true; };
-    dataChannel.onclose = () => { peer.dataChannelReady = false; };
+    window.KP = knownPeers;
+    dataChannel.onopen = () => {
+      log('Opened data channel for peer ' + peerId);
+      peer.dataChannelReady = true;
+      peer.dataQueue.forEach((msg) => peer.dataChannel.send(msg));
+      peer.dataQueue = [];
+    };
+
+    dataChannel.onclose = () => {
+      log('Closed data channel for peer ' + peerId);
+      peer.dataChannelReady = false;
+    };
+
+    dataChannel.onmessage = (e) => {
+      postChatMessage('<strong>' + peerId + ':</strong> ' + e.data);
+    };
+
+    localPeerConnection.createOffer((description) => {
+      log('Local peer from peers list created offer.');
+      localPeerConnection.setLocalDescription(description);
+      addOffer(peerId, description);
+    });
 
     knownPeers[peerId] = peer;
   });
@@ -238,39 +263,53 @@ let updateOffers = (offers) => {
       log('Creating new local peer connection for offer from ' + peerId);
       let localPeerConnection =
           new webkitRTCPeerConnection(DEFAULT_PEER_CONFIG);
+
       localPeerConnection.onicecandidate = (e) => {
             log('Local peer connection from offer got a candidate');
             if (e.candidate)
               addIceCandidate(peerId, e.candidate);
           };
-      localPeerConnection.addStream(localStream);
+
       localPeerConnection.onaddstream = (e) => {
             log('Local peer connection from offer got a stream');
             $('remoteVideo').src = URL.createObjectURL(e.stream);
           };
+
       let peer = {
         connection: localPeerConnection,
         dataChannel: null,
         dataChannelReady: false,
         knownCandidates: {},
         hasAnswer: false,
+        dataQueue: []
       };
+
       localPeerConnection.ondatachannel = (e) => {
+            log('Received datachannel from peer.');
             peer.dataChannel = e.channel;
-            e.channel.onopen = (e) => { peer.dataChannelReady = true; }
+            e.channel.onopen = (e) => {
+              peer.dataChannelReady = true;
+              peer.dataQueue.forEach((msg) => peer.dataChannel.send(msg));
+              peer.dataQueue = [];
+            }
             e.channel.onclose = (e) => { peer.dataChannelReady = false; }
+            e.channel.onmessage = (e) => {
+              postChatMessage('<strong>' + peerId + ':</strong> ' + e.data);
+            };
           };
-      log('Setting remote description of local peer connection from offer.');
+
+      knownPeers[peerId] = peer;
+
       localPeerConnection.setRemoteDescription(
           new RTCSessionDescription(description));
+      localPeerConnection.addStream(localStream);
+
       localPeerConnection.createAnswer((description) => {
             log('Local peer connection created answer to offer.');
             localPeerConnection.setLocalDescription(description);
             peer.hasAnswer = true;
             addOffer(peerId, description);
           }, (error) => { throw error; });
-      knownPeers[peerId] = peer;
-      log('Holding onto offer from peer ', peer);
     } else if (peerInfo && description.type === 'answer' &&
                !peerInfo.hasAnswer) {
       log('Received answer from peer ' + peerId, description);
@@ -281,14 +320,8 @@ let updateOffers = (offers) => {
   });
 };
 
+let postChatMessage = (message) => {
+  $('chatLog').innerHTML += '<p>' + message + '</p>';
 };
 
-/* TODO:
-
-   dataChannel.onmessage get from e.data
-
- send chat with dataChannel.send
-
 };
-
-*/
